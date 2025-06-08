@@ -112,8 +112,6 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 400px;
-            height: 200px;
             background-color: rgba(0, 0, 0, 0.85);
             color: white;
             font-size: 24px;
@@ -127,6 +125,7 @@
             text-align: center;
             z-index: 10;
             cursor: pointer;
+            white-space: pre-wrap;
         }
         #banner p {
             margin: 10px 0;
@@ -483,7 +482,7 @@
                 if (currentLevel === 99) {
                     const avgTime = levelTimes.reduce((a, b) => a + b, 0) / levelTimes.length;
                     const totalTime = levelTimes.reduce((a, b) => a + b, 0);
-                    message = `Поздравляем, вы прошли все уровни! Среднее время: ${formatTime(avgTime)}, Общее время: ${formatTime(totalTime)}`;
+                    message = `Поздравляем, вы прошли все уровни!\nСреднее время: ${formatTime(avgTime)}\nОбщее время: ${formatTime(totalTime)}`;
                 }
                 await showWinBanner(message);
                 if (currentLevel < 99) {
@@ -569,7 +568,7 @@
             const hours = Math.floor(elapsed / (1000 * 60 * 60)).toString().padStart(2, '0');
             const minutes = Math.floor((elapsed % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, '0');
             const seconds = Math.floor((elapsed % (1000 * 60)) / 1000).toString().padStart(2, '0');
-            const milliseconds = (elapsed % 1000).toString().padStart(3, '0');
+            const milliseconds = (elapsed % 1000).toString().slice(0, 3).padStart(3, '0');
             document.getElementById('timer').textContent = `Время: ${hours}.${minutes}.${seconds},${milliseconds}`;
         }
 
@@ -599,7 +598,7 @@
             const hours = Math.floor(ms / (1000 * 60 * 60)).toString().padStart(2, '0');
             const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, '0');
             const seconds = Math.floor((ms % (1000 * 60)) / 1000).toString().padStart(2, '0');
-            const milliseconds = (ms % 1000).toString().padStart(3, '0');
+            const milliseconds = (ms % 1000).toString().slice(0, 3).padStart(3, '0');
             return `${hours}.${minutes}.${seconds},${milliseconds}`;
         }
 
@@ -607,7 +606,11 @@
             return new Promise(resolve => {
                 const banner = document.createElement('div');
                 banner.id = 'banner';
-                banner.innerHTML = `<p>${message}</p>`;
+                const content = document.createElement('div');
+                content.innerHTML = `<p>${message}</p>`;
+                banner.appendChild(content);
+                banner.style.width = content.scrollWidth + 10 + 'px';
+                banner.style.height = content.scrollHeight + 10 + 'px';
                 if (currentLevel === 99) banner.onclick = () => { banner.remove(); resolve(); };
                 document.getElementById('board').appendChild(banner);
                 if (currentLevel < 99) {
@@ -625,11 +628,15 @@
             const endTime = Date.now();
             const totalTime = levelTimes.reduce((a, b) => a + b, 0) + (endTime - startTime);
             const avgTime = levelTimes.length > 0 ? totalTime / (levelTimes.length + 1) : endTime - startTime;
-            const message = `Вы проиграли!<br>Среднее время: ${formatTime(avgTime)}<br>Общее время: ${formatTime(totalTime)}`;
+            const message = `Вы проиграли!\nСреднее время: ${formatTime(avgTime)}\nОбщее время: ${formatTime(totalTime)}`;
             return new Promise(resolve => {
                 const banner = document.createElement('div');
                 banner.id = 'banner';
-                banner.innerHTML = `<p>${message}</p>`;
+                const content = document.createElement('div');
+                content.innerHTML = `<p>${message}</p>`;
+                banner.appendChild(content);
+                banner.style.width = content.scrollWidth + 10 + 'px';
+                banner.style.height = content.scrollHeight + 10 + 'px';
                 banner.onclick = () => { banner.remove(); resolve(); };
                 document.getElementById('board').appendChild(banner);
             }).then(() => {
