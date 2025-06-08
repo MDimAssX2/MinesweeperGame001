@@ -144,6 +144,17 @@
         .cell.bomb {
             background-color: #ff4444;
         }
+        .cell.targeted {
+            background-color: #d3d3d3;
+            position: relative;
+        }
+        .cell.targeted::after {
+            content: "🎯";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
         #counter {
             font-size: 24px;
             margin: 10px 0;
@@ -188,6 +199,7 @@
         let freeMistakeUsed = false;
         let touchStartTime = null;
         let touchCell = null;
+        let targetCell = null;
 
         function getLevelParams(levelIndex) {
             const incrementEvery = 5;
@@ -223,6 +235,7 @@
             document.getElementById('levelNumber').textContent = `${levelIndex + 1}/100`;
             freeMistakeUsed = false;
             document.getElementById('mistakeCount').textContent = freeMistakeUsed ? 0 : 1;
+            targetCell = null; // Сброс мишени при новом уровне
             initializeBoard();
         }
 
@@ -286,35 +299,55 @@
             const cell = event.target;
             const x = parseInt(cell.dataset.x);
             const y = parseInt(cell.dataset.y);
-            if (cell.classList.contains('flagged') || cell.classList.contains('opened')) return;
+            if (cell.classList.contains('flagged')) return;
 
-            cell.classList.add('opened');
-            if (board[y][x] === -1) {
-                if (!freeMistakeUsed) {
-                    cell.classList.remove('opened');
-                    cell.classList.add('flagged');
-                    cell.textContent = '🚩';
-                    bombCount--;
-                    document.getElementById('bombCount').textContent = bombCount;
-                    freeMistakeUsed = true;
-                    document.getElementById('mistakeCount').textContent = 0;
-                    checkWin();
+            if (!targetCell) {
+                // Первое нажатие — установка мишени
+                if (!cell.classList.contains('opened')) {
+                    targetCell = cell;
+                    cell.classList.add('targeted');
+                }
+            } else if (targetCell === cell) {
+                // Второе нажатие на ту же клетку — вскрытие
+                cell.classList.remove('targeted');
+                targetCell = null;
+                cell.classList.add('opened');
+                if (board[y][x] === -1) {
+                    if (!freeMistakeUsed) {
+                        cell.classList.remove('opened');
+                        cell.classList.add('flagged');
+                        cell.textContent = '🚩';
+                        bombCount--;
+                        document.getElementById('bombCount').textContent = bombCount;
+                        freeMistakeUsed = true;
+                        document.getElementById('mistakeCount').textContent = 0;
+                        checkWin();
+                    } else {
+                        cell.textContent = '💣';
+                        cell.classList.add('bomb');
+                        gameOver = true;
+                        revealAllBombs();
+                        showBanner('Вы проиграли!', false).then(() => {
+                            currentLevel = 0;
+                            startLevel(currentLevel);
+                        });
+                    }
                 } else {
-                    cell.textContent = '💣';
-                    cell.classList.add('bomb');
-                    gameOver = true;
-                    revealAllBombs();
-                    showBanner('Вы проиграли!', false).then(() => {
-                        currentLevel = 0;
-                        startLevel(currentLevel);
-                    });
+                    cell.textContent = board[y][x] > 0 ? board[y][x] : '';
+                    if (board[y][x] === 0) {
+                        openAdjacentCells(x, y);
+                    }
+                    checkWin();
                 }
             } else {
-                cell.textContent = board[y][x] > 0 ? board[y][x] : '';
-                if (board[y][x] === 0) {
-                    openAdjacentCells(x, y);
+                // Нажатие на другую клетку — перемещение мишени
+                targetCell.classList.remove('targeted');
+                targetCell = cell;
+                if (!cell.classList.contains('opened')) {
+                    cell.classList.add('targeted');
+                } else {
+                    targetCell = null;
                 }
-                checkWin();
             }
         }
 
@@ -322,7 +355,7 @@
             event.preventDefault();
             if (gameOver) return;
             const cell = event.target;
-            if (cell.classList.contains('opened')) return;
+            if (cell.classList.contains('opened') || cell.classList.contains('targeted')) return;
 
             if (cell.classList.contains('flagged')) {
                 cell.classList.remove('flagged');
@@ -347,7 +380,7 @@
             event.preventDefault();
             if (touchCell && event.target === touchCell) {
                 const holdTime = Date.now() - touchStartTime;
-                if (holdTime > 30) {
+                if (holdTime > 300) {
                     handleRightClick(event);
                 } else {
                     handleClick(event);
@@ -446,7 +479,7 @@
         }
 
         function showHelp() {
-            alert('Правила игры в Сапёр: Открывайте клетки левой кнопкой мыши или одиночным нажатием на сенсорном экране. Для установки флага используйте правую кнопку мыши или зажмите клетку на сенсорном экране на 0.3 секунды. Цель — либо правильно отметить все бомбы флагами, либо оставить неоткрытыми только бомбы. Удачи!');
+            alert('Правила игры в Сапёр: Выберите клетку первым нажатием (появится 🎯), вторым нажатием вскройте её. Для установки флага зажмите клетку на 0.3 секунды. Цель — либо правильно отметить все бомбы флагами, либо оставить неоткрытыми только бомбы. Удачи!');
         }
     </script>
 </body>
