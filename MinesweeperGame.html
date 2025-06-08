@@ -212,9 +212,7 @@
             const density = densityStart + levelIndex * densityIncrementPerLevel;
             const totalCells = s * s;
             let bombs = Math.round(totalCells * density);
-            if (bombs > totalCells - 1) {
-                bombs = totalCells - 1;
-            }
+            if (bombs > totalCells - 1) bombs = totalCells - 1;
             return {width: s, height: s, bombs: bombs};
         }
 
@@ -235,7 +233,7 @@
             document.getElementById('levelNumber').textContent = `${levelIndex + 1}/100`;
             freeMistakeUsed = false;
             document.getElementById('mistakeCount').textContent = freeMistakeUsed ? 0 : 1;
-            targetCell = null; // Сброс мишени при новом уровне
+            targetCell = null;
             initializeBoard();
         }
 
@@ -270,9 +268,7 @@
                         for (let dx = -1; dx <= 1; dx++) {
                             if (dy === 0 && dx === 0) continue;
                             const ny = y + dy, nx = x + dx;
-                            if (ny >= 0 && ny < height && nx >= 0 && nx < width && board[ny][nx] === -1) {
-                                count++;
-                            }
+                            if (ny >= 0 && ny < height && nx >= 0 && nx < width && board[ny][nx] === -1) count++;
                         }
                     }
                     board[y][x] = count;
@@ -299,16 +295,13 @@
             const cell = event.target;
             const x = parseInt(cell.dataset.x);
             const y = parseInt(cell.dataset.y);
+
             if (cell.classList.contains('flagged')) return;
 
-            if (!targetCell) {
-                // Первое нажатие — установка мишени
-                if (!cell.classList.contains('opened')) {
-                    targetCell = cell;
-                    cell.classList.add('targeted');
-                }
-            } else if (targetCell === cell) {
-                // Второе нажатие на ту же клетку — вскрытие
+            if (!targetCell && !cell.classList.contains('opened')) {
+                targetCell = cell;
+                cell.classList.add('targeted');
+            } else if (targetCell === cell && !cell.classList.contains('flagged')) {
                 cell.classList.remove('targeted');
                 targetCell = null;
                 cell.classList.add('opened');
@@ -334,20 +327,21 @@
                     }
                 } else {
                     cell.textContent = board[y][x] > 0 ? board[y][x] : '';
-                    if (board[y][x] === 0) {
-                        openAdjacentCells(x, y);
-                    }
+                    if (board[y][x] === 0) openAdjacentCells(x, y);
                     checkWin();
                 }
-            } else {
-                // Нажатие на другую клетку — перемещение мишени
+            } else if (cell.classList.contains('opened') && cell.textContent && !isNaN(parseInt(cell.textContent)) && parseInt(cell.textContent) > 0) {
+                const requiredFlags = parseInt(cell.textContent);
+                const flagCount = countFlagsAround(x, y);
+                if (flagCount === requiredFlags) {
+                    openNeighbors(x, y);
+                    checkWin();
+                }
+            } else if (targetCell) {
                 targetCell.classList.remove('targeted');
                 targetCell = cell;
-                if (!cell.classList.contains('opened')) {
-                    cell.classList.add('targeted');
-                } else {
-                    targetCell = null;
-                }
+                if (!cell.classList.contains('opened')) cell.classList.add('targeted');
+                else targetCell = null;
             }
         }
 
@@ -355,13 +349,17 @@
             event.preventDefault();
             if (gameOver) return;
             const cell = event.target;
-            if (cell.classList.contains('opened') || cell.classList.contains('targeted')) return;
+            if (cell.classList.contains('opened')) return;
 
             if (cell.classList.contains('flagged')) {
                 cell.classList.remove('flagged');
                 cell.textContent = '';
                 bombCount++;
             } else if (bombCount > 0) {
+                if (cell.classList.contains('targeted')) {
+                    cell.classList.remove('targeted');
+                    targetCell = null;
+                }
                 cell.classList.add('flagged');
                 cell.textContent = '🚩';
                 bombCount--;
@@ -380,23 +378,22 @@
             event.preventDefault();
             if (touchCell && event.target === touchCell) {
                 const holdTime = Date.now() - touchStartTime;
-                if (holdTime > 300) {
-                    if (touchCell.classList.contains('targeted')) {
-                        // Длительное нажатие на мишень — установка/снятие флага
-                        if (touchCell.classList.contains('flagged')) {
-                            touchCell.classList.remove('flagged');
-                            touchCell.textContent = '';
-                            bombCount++;
-                        } else if (bombCount > 0) {
-                            touchCell.classList.add('flagged');
-                            touchCell.textContent = '🚩';
-                            bombCount--;
+                if (holdTime > 300 && !touchCell.classList.contains('opened')) {
+                    if (touchCell.classList.contains('flagged')) {
+                        touchCell.classList.remove('flagged');
+                        touchCell.textContent = '';
+                        bombCount++;
+                    } else if (bombCount > 0) {
+                        if (touchCell.classList.contains('targeted')) {
+                            touchCell.classList.remove('targeted');
+                            targetCell = null;
                         }
-                        document.getElementById('bombCount').textContent = bombCount;
-                        checkWin();
-                    } else {
-                        handleRightClick(event); // Обычное зажатие для флага
+                        touchCell.classList.add('flagged');
+                        touchCell.textContent = '🚩';
+                        bombCount--;
                     }
+                    document.getElementById('bombCount').textContent = bombCount;
+                    checkWin();
                 } else {
                     handleClick(event);
                 }
@@ -408,10 +405,7 @@
         async function checkWin() {
             if (gameOver) return;
 
-            let correctFlags = 0;
-            let unopenedBombs = 0;
-            let totalUnopened = 0;
-
+            let correctFlags = 0, unopenedBombs = 0, totalUnopened = 0;
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
                     const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
@@ -419,12 +413,8 @@
                         totalUnopened++;
                         if (board[y][x] === -1) {
                             unopenedBombs++;
-                            if (cell.classList.contains('flagged')) {
-                                correctFlags++;
-                            }
-                        } else if (cell.classList.contains('flagged')) {
-                            return; // Флаг на безопасной клетке — победа не засчитывается
-                        }
+                            if (cell.classList.contains('flagged')) correctFlags++;
+                        } else if (cell.classList.contains('flagged')) return;
                     }
                 }
             }
@@ -432,9 +422,7 @@
             if ((correctFlags === bombs && bombCount === 0) || (unopenedBombs === totalUnopened && totalUnopened === bombs)) {
                 gameOver = true;
                 let message = 'Поздравляем, вы прошли уровень!';
-                if (currentLevel === 99) {
-                    message = 'Поздравляем, вы прошли все уровни!';
-                }
+                if (currentLevel === 99) message = 'Поздравляем, вы прошли все уровни!';
                 await showBanner(message, true);
                 if (currentLevel < 99) {
                     currentLevel++;
@@ -442,6 +430,50 @@
                 } else {
                     currentLevel = 0;
                     startLevel(currentLevel);
+                }
+            }
+        }
+
+        function countFlagsAround(x, y) {
+            let count = 0;
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    if (dy === 0 && dx === 0) continue;
+                    const ny = y + dy, nx = x + dx;
+                    if (ny >= 0 && ny < height && nx >= 0 && nx < width) {
+                        const cell = document.querySelector(`.cell[data-x="${nx}"][data-y="${ny}"]`);
+                        if (cell.classList.contains('flagged')) count++;
+                    }
+                }
+            }
+            return count;
+        }
+
+        function openNeighbors(x, y) {
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    if (dy === 0 && dx === 0) continue;
+                    const ny = y + dy, nx = x + dx;
+                    if (ny >= 0 && ny < height && nx >= 0 && nx < width) {
+                        const cell = document.querySelector(`.cell[data-x="${nx}"][data-y="${ny}"]`);
+                        if (!cell.classList.contains('opened') && !cell.classList.contains('flagged')) {
+                            cell.classList.add('opened');
+                            const value = board[ny][nx];
+                            cell.textContent = value > 0 ? value : '';
+                            if (value === 0) openAdjacentCells(nx, ny);
+                            else if (value === -1) {
+                                cell.textContent = '💣';
+                                cell.classList.add('bomb');
+                                gameOver = true;
+                                revealAllBombs();
+                                showBanner('Вы проиграли!', false).then(() => {
+                                    currentLevel = 0;
+                                    startLevel(currentLevel);
+                                });
+                                return;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -455,9 +487,7 @@
                         if (!cell.classList.contains('opened') && !cell.classList.contains('flagged')) {
                             cell.classList.add('opened');
                             cell.textContent = board[ny][nx] > 0 ? board[ny][nx] : '';
-                            if (board[ny][nx] === 0) {
-                                openAdjacentCells(nx, ny);
-                            }
+                            if (board[ny][nx] === 0) openAdjacentCells(nx, ny);
                         }
                     }
                 }
@@ -477,24 +507,18 @@
         }
 
         function showBanner(message, isWin) {
-            return new Promise((resolve) => {
+            return new Promise(resolve => {
                 const banner = document.createElement('div');
                 banner.id = 'banner';
                 banner.textContent = message;
-                if (isWin) {
-                    banner.textContent += ' 🎉';
-                }
-                const boardElement = document.getElementById('board');
-                boardElement.appendChild(banner);
-                setTimeout(() => {
-                    banner.remove();
-                    resolve();
-                }, 1500);
+                if (isWin) banner.textContent += ' 🎉';
+                document.getElementById('board').appendChild(banner);
+                setTimeout(() => { banner.remove(); resolve(); }, 1500);
             });
         }
 
         function showHelp() {
-            alert('Правила игры в Сапёр: Выберите клетку первым нажатием (появится 🎯), вторым нажатием вскройте её. Для установки флага зажмите клетку на 0.3 секунды или мишень. Цель — либо правильно отметить все бомбы флагами, либо оставить неоткрытыми только бомбы. Удачи!');
+            alert('Правила игры в Сапёр: Выберите клетку первым нажатием (появится 🎯), вторым нажатием вскройте её. Для установки флага зажмите клетку на 0.3 секунды или нажмите ПКМ, даже на мишени (ЛКМ на мишени флаг не ставит). Нажмите на открытую клетку с цифрой, если вокруг неё столько флагов, сколько указано в цифре — откроются соседние клетки. Цель — либо правильно отметить все бомбы флагами, либо оставить неоткрытыми только бомбы. Удачи!');
         }
     </script>
 </body>
