@@ -59,13 +59,21 @@
         }
         .button-group {
             display: flex;
-            gap: 10px;
+            gap: 5px;
             margin-bottom: 20px;
+            width: 300px;
+            justify-content: center;
         }
-        #startButton, #helpButton, #restart, #helpGameButton {
-            padding: 10px 20px;
+        .game-button-group {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            width: 300px;
+        }
+        #startButton, #helpButton, #restart, #helpGameButton, #saveButton {
+            padding: 10px;
             border: none;
-            border-radius: 5px;
+            border-radius: 10px;
             cursor: pointer;
             font-size: 16px;
         }
@@ -76,11 +84,11 @@
         #startButton:hover, #restart:hover {
             background-color: #45a049;
         }
-        #helpButton, #helpGameButton {
+        #helpButton, #helpGameButton, #saveButton {
             background-color: #2196F3;
             color: white;
         }
-        #helpButton:hover, #helpGameButton:hover {
+        #helpButton:hover, #helpGameButton:hover, #saveButton:hover {
             background-color: #1976D2;
         }
         #game {
@@ -88,7 +96,7 @@
             flex-direction: column;
             align-items: center;
         }
-        #level {
+        #level, #counter, #mistakeCounter, #timer {
             font-size: 24px;
             margin: 10px 0;
             background-color: white;
@@ -96,6 +104,7 @@
             border-radius: 5px;
             box-shadow: 0 0 5px rgba(0,0,0,0.1);
             text-align: center;
+            width: 300px;
         }
         #board {
             position: relative;
@@ -126,9 +135,33 @@
             z-index: 10;
             cursor: pointer;
             white-space: pre-wrap;
+            width: 300px;
         }
         #banner-content {
             padding: 20px;
+            width: 100%;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #banner.save-menu {
+            height: auto;
+        }
+        #banner button {
+            padding: 10px 20px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 10px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            font-size: 18px;
+            width: 100%;
+        }
+        #banner button:hover {
+            background-color: #45a049;
         }
         #banner p {
             margin: 10px 0;
@@ -168,34 +201,6 @@
             left: 50%;
             transform: translate(-50%, -50%);
         }
-        #counter {
-            font-size: 24px;
-            margin: 10px 0;
-            background-color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            box-shadow: 0 0 5px rgba(0,0,0,0.1);
-            text-align: center;
-        }
-        #mistakeCounter {
-            font-size: 24px;
-            margin: 10px 0;
-            background-color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            box-shadow: 0 0 5px rgba(0,0,0,0.1);
-            text-align: center;
-        }
-        #timer {
-            font-size: 24px;
-            margin: 10px 0;
-            background-color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            box-shadow: 0 0 5px rgba(0,0,0,0.1);
-            text-align: center;
-            cursor: pointer;
-        }
         #timeTable {
             display: none;
             width: 300px;
@@ -227,8 +232,9 @@
         <button id="helpButton" onclick="showHelp()">[?]</button>
     </div>
     <div id="game">
-        <div class="button-group">
-            <button id="restart" onclick="restartGame()">Новая игра</button>
+        <div class="game-button-group">
+            <button id="saveButton" onclick="showSaveMenu()">💾</button>
+            <button id="restart" onclick="restartGame()" style="width: 200px;">Новая игра</button>
             <button id="helpGameButton" onclick="showHelp()">[?]</button>
         </div>
         <div id="level">Уровень: <span id="levelNumber">1/100</span></div>
@@ -297,7 +303,9 @@
 
         function restartGame() {
             currentLevel = 0;
+            levelTimes = [];
             startLevel(currentLevel);
+            updateTimeTable();
         }
 
         function initializeBoard() {
@@ -488,10 +496,6 @@
                     message = `Поздравляем, вы прошли все уровни!\nСреднее время: ${formatTime(avgTime)}\nОбщее время: ${formatTime(totalTime)}`;
                 }
                 await showWinBanner(message);
-                if (currentLevel < 99) {
-                    currentLevel++;
-                    startLevel(currentLevel);
-                }
             }
         }
 
@@ -620,7 +624,7 @@
                 content.innerHTML = `<p>${message}</p>`;
                 document.body.appendChild(content);
                 const rect = content.getBoundingClientRect();
-                const width = rect.width + 5;
+                const width = 300;
                 const height = rect.height + 5;
                 content.remove();
                 const contentVisible = document.createElement('div');
@@ -636,7 +640,7 @@
                 }
             }).then(() => {
                 if (currentLevel < 99) {
-                    currentLevel++;
+                    currentLevel += 1;
                     startLevel(currentLevel);
                 }
             });
@@ -661,7 +665,7 @@
                 content.innerHTML = `<p>${message}</p>`;
                 document.body.appendChild(content);
                 const rect = content.getBoundingClientRect();
-                const width = rect.width + 5;
+                const width = 300;
                 const height = rect.height + 5;
                 content.remove();
                 const contentVisible = document.createElement('div');
@@ -674,8 +678,151 @@
                 document.getElementById('board').appendChild(banner);
             }).then(() => {
                 currentLevel = 0;
+                levelTimes = []; // Сброс таблицы времени перед началом новой игры
                 startLevel(currentLevel);
+                updateTimeTable(); // Обновление таблицы для отображения пустого состояния
             });
+        }
+
+        function showSaveMenu() {
+            return new Promise(resolve => {
+                const banner = document.createElement('div');
+                banner.id = 'banner';
+                banner.classList.add('save-menu');
+                const boardHeight = document.getElementById('board').offsetHeight;
+                banner.style.height = boardHeight + 'px';
+                const content = document.createElement('div');
+                content.id = 'banner-content';
+                content.style.visibility = 'hidden';
+                content.style.position = 'absolute';
+                content.style.padding = '20px';
+                content.style.fontSize = '20px';
+                content.style.fontFamily = 'Arial, sans-serif';
+                content.style.whiteSpace = 'pre-wrap';
+                content.innerHTML = `
+                    <button onclick="saveGame(); hideBanner()">Сохранить</button>
+                    <button onclick="loadGame(); hideBanner()">Загрузить</button>
+                    <button onclick="hideBanner()">Отмена</button>
+                `;
+                document.body.appendChild(content);
+                const rect = content.getBoundingClientRect();
+                const width = 300;
+                const height = rect.height + 5;
+                content.remove();
+                const contentVisible = document.createElement('div');
+                contentVisible.id = 'banner-content';
+                contentVisible.innerHTML = `
+                    <button onclick="saveGame(); hideBanner()">Сохранить</button>
+                    <button onclick="loadGame(); hideBanner()">Загрузить</button>
+                    <button onclick="hideBanner()">Отмена</button>
+                `;
+                banner.appendChild(contentVisible);
+                banner.style.width = width + 'px';
+                banner.onclick = (e) => e.stopPropagation();
+                document.getElementById('board').appendChild(banner);
+                resolve();
+            });
+        }
+
+        function hideBanner() {
+            const banner = document.getElementById('banner');
+            if (banner) banner.remove();
+        }
+
+        function saveGame() {
+            const saveData = {
+                currentLevel,
+                width,
+                height,
+                bombs,
+                board,
+                bombCount,
+                freeMistakeUsed,
+                targetCell: targetCell ? { x: targetCell.dataset.x, y: targetCell.dataset.y } : null,
+                levelTimes,
+                startTime: startTime ? startTime : Date.now(),
+                gameOver
+            };
+            const cells = document.querySelectorAll('.cell');
+            saveData.cellStates = Array.from(cells).map(cell => ({
+                x: cell.dataset.x,
+                y: cell.dataset.y,
+                classList: Array.from(cell.classList),
+                textContent: cell.textContent
+            }));
+            const blob = new Blob([JSON.stringify(saveData)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `minesweeper_save_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function loadGame() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const saveData = JSON.parse(event.target.result);
+                        currentLevel = saveData.currentLevel;
+                        width = saveData.width;
+                        height = saveData.height;
+                        bombs = saveData.bombs;
+                        board = saveData.board;
+                        bombCount = saveData.bombCount;
+                        freeMistakeUsed = saveData.freeMistakeUsed;
+                        levelTimes = saveData.levelTimes;
+                        startTime = saveData.startTime;
+                        gameOver = saveData.gameOver;
+
+                        document.getElementById('bombCount').textContent = bombCount;
+                        document.getElementById('levelNumber').textContent = `${currentLevel + 1}/100`;
+                        document.getElementById('mistakeCount').textContent = freeMistakeUsed ? 0 : 1;
+                        if (timerInterval) clearInterval(timerInterval);
+                        timerInterval = setInterval(updateTimer, 10);
+                        updateTimer();
+
+                        const boardElement = document.getElementById('board');
+                        boardElement.innerHTML = '';
+                        boardElement.style.gridTemplateColumns = `repeat(${width}, 30px)`;
+                        boardElement.style.gridTemplateRows = `repeat(${height}, 30px)`;
+
+                        for (let y = 0; y < height; y++) {
+                            for (let x = 0; x < width; x++) {
+                                const cell = document.createElement('div');
+                                cell.classList.add('cell');
+                                cell.dataset.x = x;
+                                cell.dataset.y = y;
+                                cell.addEventListener('click', handleClick);
+                                cell.addEventListener('contextmenu', handleRightClick);
+                                cell.addEventListener('touchstart', handleTouchStart);
+                                cell.addEventListener('touchend', handleTouchEnd);
+                                boardElement.appendChild(cell);
+                            }
+                        }
+
+                        saveData.cellStates.forEach(state => {
+                            const cell = document.querySelector(`.cell[data-x="${state.x}"][data-y="${state.y}"]`);
+                            state.classList.forEach(cls => cell.classList.add(cls));
+                            cell.textContent = state.textContent;
+                        });
+
+                        if (saveData.targetCell) {
+                            targetCell = document.querySelector(`.cell[data-x="${saveData.targetCell.x}"][data-y="${saveData.targetCell.y}"]`);
+                            if (targetCell && !targetCell.classList.contains('opened')) targetCell.classList.add('targeted');
+                        }
+
+                        updateTimeTable();
+                    };
+                    reader.readAsText(file);
+                }
+            };
+            input.click();
         }
 
         function showHelp() {
