@@ -70,7 +70,7 @@
             margin-bottom: 20px;
             width: 300px;
         }
-        #startButton, #helpButton, #restart, #helpGameButton, #saveButton {
+        #startButton, #helpButton, #restart, #helpGameButton {
             padding: 10px;
             border: none;
             border-radius: 10px;
@@ -84,11 +84,11 @@
         #startButton:hover, #restart:hover {
             background-color: #45a049;
         }
-        #helpButton, #helpGameButton, #saveButton {
+        #helpButton, #helpGameButton {
             background-color: #2196F3;
             color: white;
         }
-        #helpButton:hover, #helpGameButton:hover, #saveButton:hover {
+        #helpButton:hover, #helpGameButton:hover {
             background-color: #1976D2;
         }
         #game {
@@ -233,7 +233,6 @@
     </div>
     <div id="game">
         <div class="game-button-group">
-            <button id="saveButton" onclick="showSaveMenu()">💾</button>
             <button id="restart" onclick="restartGame()" style="width: 200px;">Новая игра</button>
             <button id="helpGameButton" onclick="showHelp()">[?]</button>
         </div>
@@ -468,7 +467,7 @@
         async function checkWin() {
             if (gameOver) return;
 
-            let correctFlags = 0, unopenedBombs = 0, totalUnopened = 0;
+            let unopenedBombs = 0, totalUnopened = 0;
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
                     const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
@@ -476,13 +475,12 @@
                         totalUnopened++;
                         if (board[y][x] === -1) {
                             unopenedBombs++;
-                            if (cell.classList.contains('flagged')) correctFlags++;
-                        } else if (cell.classList.contains('flagged')) return;
+                        }
                     }
                 }
             }
 
-            if ((correctFlags === bombs && bombCount === 0) || (unopenedBombs === totalUnopened && totalUnopened === bombs)) {
+            if (unopenedBombs === totalUnopened && totalUnopened === bombs) {
                 gameOver = true;
                 const endTime = Date.now();
                 const timeTaken = endTime - startTime;
@@ -678,49 +676,9 @@
                 document.getElementById('board').appendChild(banner);
             }).then(() => {
                 currentLevel = 0;
-                levelTimes = []; // Сброс таблицы времени перед началом новой игры
+                levelTimes = [];
                 startLevel(currentLevel);
-                updateTimeTable(); // Обновление таблицы для отображения пустого состояния
-            });
-        }
-
-        function showSaveMenu() {
-            return new Promise(resolve => {
-                const banner = document.createElement('div');
-                banner.id = 'banner';
-                banner.classList.add('save-menu');
-                const boardHeight = document.getElementById('board').offsetHeight;
-                banner.style.height = boardHeight + 'px';
-                const content = document.createElement('div');
-                content.id = 'banner-content';
-                content.style.visibility = 'hidden';
-                content.style.position = 'absolute';
-                content.style.padding = '20px';
-                content.style.fontSize = '20px';
-                content.style.fontFamily = 'Arial, sans-serif';
-                content.style.whiteSpace = 'pre-wrap';
-                content.innerHTML = `
-                    <button onclick="saveGame(); hideBanner()">Сохранить</button>
-                    <button onclick="loadGame(); hideBanner()">Загрузить</button>
-                    <button onclick="hideBanner()">Отмена</button>
-                `;
-                document.body.appendChild(content);
-                const rect = content.getBoundingClientRect();
-                const width = 300;
-                const height = rect.height + 5;
-                content.remove();
-                const contentVisible = document.createElement('div');
-                contentVisible.id = 'banner-content';
-                contentVisible.innerHTML = `
-                    <button onclick="saveGame(); hideBanner()">Сохранить</button>
-                    <button onclick="loadGame(); hideBanner()">Загрузить</button>
-                    <button onclick="hideBanner()">Отмена</button>
-                `;
-                banner.appendChild(contentVisible);
-                banner.style.width = width + 'px';
-                banner.onclick = (e) => e.stopPropagation();
-                document.getElementById('board').appendChild(banner);
-                resolve();
+                updateTimeTable();
             });
         }
 
@@ -729,104 +687,8 @@
             if (banner) banner.remove();
         }
 
-        function saveGame() {
-            const saveData = {
-                currentLevel,
-                width,
-                height,
-                bombs,
-                board,
-                bombCount,
-                freeMistakeUsed,
-                targetCell: targetCell ? { x: targetCell.dataset.x, y: targetCell.dataset.y } : null,
-                levelTimes,
-                startTime: startTime ? startTime : Date.now(),
-                gameOver
-            };
-            const cells = document.querySelectorAll('.cell');
-            saveData.cellStates = Array.from(cells).map(cell => ({
-                x: cell.dataset.x,
-                y: cell.dataset.y,
-                classList: Array.from(cell.classList),
-                textContent: cell.textContent
-            }));
-            const blob = new Blob([JSON.stringify(saveData)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `minesweeper_save_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        function loadGame() {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.json';
-            input.onchange = (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                        const saveData = JSON.parse(event.target.result);
-                        currentLevel = saveData.currentLevel;
-                        width = saveData.width;
-                        height = saveData.height;
-                        bombs = saveData.bombs;
-                        board = saveData.board;
-                        bombCount = saveData.bombCount;
-                        freeMistakeUsed = saveData.freeMistakeUsed;
-                        levelTimes = saveData.levelTimes;
-                        startTime = saveData.startTime;
-                        gameOver = saveData.gameOver;
-
-                        document.getElementById('bombCount').textContent = bombCount;
-                        document.getElementById('levelNumber').textContent = `${currentLevel + 1}/100`;
-                        document.getElementById('mistakeCount').textContent = freeMistakeUsed ? 0 : 1;
-                        if (timerInterval) clearInterval(timerInterval);
-                        timerInterval = setInterval(updateTimer, 10);
-                        updateTimer();
-
-                        const boardElement = document.getElementById('board');
-                        boardElement.innerHTML = '';
-                        boardElement.style.gridTemplateColumns = `repeat(${width}, 30px)`;
-                        boardElement.style.gridTemplateRows = `repeat(${height}, 30px)`;
-
-                        for (let y = 0; y < height; y++) {
-                            for (let x = 0; x < width; x++) {
-                                const cell = document.createElement('div');
-                                cell.classList.add('cell');
-                                cell.dataset.x = x;
-                                cell.dataset.y = y;
-                                cell.addEventListener('click', handleClick);
-                                cell.addEventListener('contextmenu', handleRightClick);
-                                cell.addEventListener('touchstart', handleTouchStart);
-                                cell.addEventListener('touchend', handleTouchEnd);
-                                boardElement.appendChild(cell);
-                            }
-                        }
-
-                        saveData.cellStates.forEach(state => {
-                            const cell = document.querySelector(`.cell[data-x="${state.x}"][data-y="${state.y}"]`);
-                            state.classList.forEach(cls => cell.classList.add(cls));
-                            cell.textContent = state.textContent;
-                        });
-
-                        if (saveData.targetCell) {
-                            targetCell = document.querySelector(`.cell[data-x="${saveData.targetCell.x}"][data-y="${saveData.targetCell.y}"]`);
-                            if (targetCell && !targetCell.classList.contains('opened')) targetCell.classList.add('targeted');
-                        }
-
-                        updateTimeTable();
-                    };
-                    reader.readAsText(file);
-                }
-            };
-            input.click();
-        }
-
         function showHelp() {
-            alert('Правила игры в Сапёр: Выберите клетку первым нажатием (появится 🎯), вторым нажатием вскройте её. Для установки флага зажмите клетку на 0.3 секунды или нажмите ПКМ, даже на мишени (ЛКМ на мишени флаг не ставит). Нажмите на открытую клетку с цифрой, если вокруг неё столько флагов, сколько указано в цифре — откроются соседние клетки. Цель — либо правильно отметить все бомбы флагами, либо оставить неоткрытыми только бомбы. Удачи!');
+            alert('Правила игры в Сапёр: Выберите клетку первым нажатием (появится 🎯), вторым нажатием вскройте её. Для установки флага зажмите клетку на 0.3 секунды или нажмите ПКМ, даже на мишени (ЛКМ на мишени флаг не ставит). Нажмите на открытую клетку с цифрой, если вокруг неё столько флагов, сколько указано в цифре — откроются соседние клетки. Цель — открыть все клетки, кроме бомб. Удачи!');
         }
     </script>
 </body>
