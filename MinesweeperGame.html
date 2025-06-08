@@ -347,7 +347,7 @@
             event.preventDefault();
             if (touchCell && event.target === touchCell) {
                 const holdTime = Date.now() - touchStartTime;
-                if (holdTime > 100) {
+                if (holdTime > 30) {
                     handleRightClick(event);
                 } else {
                     handleClick(event);
