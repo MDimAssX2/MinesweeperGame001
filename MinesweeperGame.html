@@ -1,0 +1,430 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сапёр</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        #startButton, #helpButton, #restart, #helpGameButton {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #startButton, #restart {
+            background-color: #4CAF50;
+            color: white;
+        }
+        #startButton:hover, #restart:hover {
+            background-color: #45a049;
+        }
+        #helpButton, #helpGameButton {
+            background-color: #2196F3;
+            color: white;
+        }
+        #helpButton:hover, #helpGameButton:hover {
+            background-color: #1976D2;
+        }
+        #game {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+        }
+        #level {
+            font-size: 24px;
+            margin: 10px 0;
+            background-color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        #board {
+            position: relative;
+            display: grid;
+            background-color: #ddd;
+            border: 2px solid #999;
+            border-radius: 5px;
+            padding: 5px;
+            margin: 0 auto;
+            width: fit-content;
+        }
+        #banner {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        .cell {
+            width: 30px;
+            height: 30px;
+            background-color: #bbb;
+            border: 1px solid #999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            cursor: pointer;
+            user-select: none;
+            box-sizing: border-box;
+        }
+        .cell.opened {
+            background-color: #eee;
+            cursor: default;
+        }
+        .cell.flagged {
+            background-color: #ffeb3b;
+        }
+        .cell.bomb {
+            background-color: #ff4444;
+        }
+        #counter {
+            font-size: 24px;
+            margin: 10px 0;
+            background-color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        #mistakeCounter {
+            font-size: 24px;
+            margin: 10px 0;
+            background-color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Сапёр</h1>
+    <div class="button-group">
+        <button id="startButton" onclick="startCampaign()">Начать кампанию</button>
+        <button id="helpButton" onclick="showHelp()">[?]</button>
+    </div>
+    <div id="game">
+        <div class="button-group">
+            <button id="restart" onclick="restartGame()">Новая игра</button>
+            <button id="helpGameButton" onclick="showHelp()">[?]</button>
+        </div>
+        <div id="level">Уровень: <span id="levelNumber">1/100</span></div>
+        <div id="board"></div>
+        <div id="counter">💣 Бомб осталось: <span id="bombCount">0</span></div>
+        <div id="mistakeCounter">Право на ошибку: <span id="mistakeCount">1</span></div>
+    </div>
+
+    <script>
+        let currentLevel = 0;
+        let width, height, bombs, board, bombCount, gameOver = false;
+        let freeMistakeUsed = false;
+        let touchStartTime = null;
+        let touchCell = null;
+
+        function getLevelParams(levelIndex) {
+            const incrementEvery = 5;
+            const startSize = 5;
+            const maxSize = 20;
+            const base = Math.floor(levelIndex / incrementEvery);
+            let s = Math.min(startSize + base, maxSize);
+            const densityStart = 0.1;
+            const densityIncrementPerLevel = 0.002;
+            const density = densityStart + levelIndex * densityIncrementPerLevel;
+            const totalCells = s * s;
+            let bombs = Math.round(totalCells * density);
+            if (bombs > totalCells - 1) {
+                bombs = totalCells - 1;
+            }
+            return {width: s, height: s, bombs: bombs};
+        }
+
+        function startCampaign() {
+            document.getElementById('startButton').style.display = 'none';
+            document.getElementById('helpButton').style.display = 'none';
+            document.getElementById('game').style.display = 'flex';
+            startLevel(currentLevel);
+        }
+
+        function startLevel(levelIndex) {
+            const level = getLevelParams(levelIndex);
+            width = level.width;
+            height = level.height;
+            bombs = level.bombs;
+            bombCount = bombs;
+            document.getElementById('bombCount').textContent = bombCount;
+            document.getElementById('levelNumber').textContent = `${levelIndex + 1}/100`;
+            freeMistakeUsed = false;
+            document.getElementById('mistakeCount').textContent = freeMistakeUsed ? 0 : 1;
+            initializeBoard();
+        }
+
+        function restartGame() {
+            currentLevel = 0;
+            startLevel(currentLevel);
+        }
+
+        function initializeBoard() {
+            gameOver = false;
+            board = Array(height).fill().map(() => Array(width).fill(0));
+            const boardElement = document.getElementById('board');
+            boardElement.style.gridTemplateColumns = `repeat(${width}, 30px)`;
+            boardElement.style.gridTemplateRows = `repeat(${height}, 30px)`;
+            boardElement.innerHTML = '';
+
+            let bombsPlaced = 0;
+            while (bombsPlaced < bombs) {
+                const x = Math.floor(Math.random() * width);
+                const y = Math.floor(Math.random() * height);
+                if (board[y][x] !== -1) {
+                    board[y][x] = -1;
+                    bombsPlaced++;
+                }
+            }
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    if (board[y][x] === -1) continue;
+                    let count = 0;
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            if (dy === 0 && dx === 0) continue;
+                            const ny = y + dy, nx = x + dx;
+                            if (ny >= 0 && ny < height && nx >= 0 && nx < width && board[ny][nx] === -1) {
+                                count++;
+                            }
+                        }
+                    }
+                    board[y][x] = count;
+                }
+            }
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    cell.dataset.x = x;
+                    cell.dataset.y = y;
+                    cell.addEventListener('click', handleClick);
+                    cell.addEventListener('contextmenu', handleRightClick);
+                    cell.addEventListener('touchstart', handleTouchStart);
+                    cell.addEventListener('touchend', handleTouchEnd);
+                    boardElement.appendChild(cell);
+                }
+            }
+        }
+
+        function handleClick(event) {
+            if (gameOver) return;
+            const cell = event.target;
+            const x = parseInt(cell.dataset.x);
+            const y = parseInt(cell.dataset.y);
+            if (cell.classList.contains('flagged') || cell.classList.contains('opened')) return;
+
+            cell.classList.add('opened');
+            if (board[y][x] === -1) {
+                if (!freeMistakeUsed) {
+                    cell.classList.remove('opened');
+                    cell.classList.add('flagged');
+                    cell.textContent = '🚩';
+                    bombCount--;
+                    document.getElementById('bombCount').textContent = bombCount;
+                    freeMistakeUsed = true;
+                    document.getElementById('mistakeCount').textContent = 0;
+                    checkWin();
+                } else {
+                    cell.textContent = '💣';
+                    cell.classList.add('bomb');
+                    gameOver = true;
+                    revealAllBombs();
+                    showBanner('Вы проиграли!', false).then(() => {
+                        currentLevel = 0;
+                        startLevel(currentLevel);
+                    });
+                }
+            } else {
+                cell.textContent = board[y][x] > 0 ? board[y][x] : '';
+                if (board[y][x] === 0) {
+                    openAdjacentCells(x, y);
+                }
+                checkWin();
+            }
+        }
+
+        function handleRightClick(event) {
+            event.preventDefault();
+            if (gameOver) return;
+            const cell = event.target;
+            if (cell.classList.contains('opened')) return;
+
+            if (cell.classList.contains('flagged')) {
+                cell.classList.remove('flagged');
+                cell.textContent = '';
+                bombCount++;
+            } else if (bombCount > 0) {
+                cell.classList.add('flagged');
+                cell.textContent = '🚩';
+                bombCount--;
+            }
+            document.getElementById('bombCount').textContent = bombCount;
+            checkWin();
+        }
+
+        function handleTouchStart(event) {
+            event.preventDefault();
+            touchStartTime = Date.now();
+            touchCell = event.target;
+        }
+
+        function handleTouchEnd(event) {
+            event.preventDefault();
+            if (touchCell && event.target === touchCell) {
+                const holdTime = Date.now() - touchStartTime;
+                if (holdTime > 300) {
+                    handleRightClick(event);
+                } else {
+                    handleClick(event);
+                }
+                touchCell = null;
+                touchStartTime = null;
+            }
+        }
+
+        async function checkWin() {
+            let openedCount = document.querySelectorAll('.cell.opened').length;
+            if (openedCount === width * height - bombs && bombCount === 0) {
+                gameOver = true;
+                let message = 'Поздравляем, вы прошли уровень!';
+                if (currentLevel === 99) {
+                    message = 'Поздравляем, вы прошли все уровни!';
+                }
+                await showBanner(message, true);
+                if (currentLevel < 99) {
+                    currentLevel++;
+                    startLevel(currentLevel);
+                } else {
+                    currentLevel = 0;
+                    startLevel(currentLevel);
+                }
+            }
+        }
+
+        function openAdjacentCells(x, y) {
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    const ny = y + dy, nx = x + dx;
+                    if (ny >= 0 && ny < height && nx >= 0 && nx < width) {
+                        const cell = document.querySelector(`.cell[data-x="${nx}"][data-y="${ny}"]`);
+                        if (!cell.classList.contains('opened') && !cell.classList.contains('flagged')) {
+                            cell.classList.add('opened');
+                            cell.textContent = board[ny][nx] > 0 ? board[ny][nx] : '';
+                            if (board[ny][nx] === 0) {
+                                openAdjacentCells(nx, ny);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function revealAllBombs() {
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    if (board[y][x] === -1) {
+                        const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+                        cell.textContent = '💣';
+                        cell.classList.add('bomb');
+                    }
+                }
+            }
+        }
+
+        function showBanner(message, isWin) {
+            return new Promise((resolve) => {
+                const banner = document.createElement('div');
+                banner.id = 'banner';
+                banner.textContent = message;
+                if (isWin) {
+                    banner.textContent += ' 🎉';
+                }
+                const boardElement = document.getElementById('board');
+                boardElement.appendChild(banner);
+                setTimeout(() => {
+                    banner.remove();
+                    resolve();
+                }, 1500);
+            });
+        }
+
+        function showHelp() {
+            alert('Правила игры в Сапёр: Открывайте клетки левой кнопкой мыши или одиночным нажатием на сенсорном экране. Для установки флага используйте правую кнопку мыши или зажмите клетку на сенсорном экране на 0.3 секунды. Цель — открыть все безопасные клетки. Удачи!');
+        }
+    </script>
+</body>
+</html>
