@@ -109,17 +109,28 @@
         }
         #banner {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            height: 200px;
+            background-color: rgba(0, 0, 0, 0.85);
             color: white;
             font-size: 24px;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            text-align: center;
             z-index: 10;
+            cursor: pointer;
+        }
+        #banner p {
+            margin: 10px 0;
+            font-size: 20px;
         }
         .cell {
             width: 30px;
@@ -173,6 +184,37 @@
             box-shadow: 0 0 5px rgba(0,0,0,0.1);
             text-align: center;
         }
+        #timer {
+            font-size: 24px;
+            margin: 10px 0;
+            background-color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(0,0,0,0.1);
+            text-align: center;
+            cursor: pointer;
+        }
+        #timeTable {
+            display: none;
+            width: 300px;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(0,0,0,0.1);
+            margin-top: 10px;
+            padding: 10px;
+        }
+        #timeTable table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #timeTable th, #timeTable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        #timeTable th {
+            background-color: #f2f2f2;
+        }
     </style>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
@@ -191,6 +233,12 @@
         <div id="board"></div>
         <div id="counter">💣 Бомб осталось: <span id="bombCount">0</span></div>
         <div id="mistakeCounter">Право на ошибку: <span id="mistakeCount">1</span></div>
+        <div id="timer" onclick="toggleTimeTable()">Время: 00.00.00,000</div>
+        <div id="timeTable">
+            <table>
+                <tr><th>Уровень</th><th>Время прохождения</th></tr>
+            </table>
+        </div>
     </div>
 
     <script>
@@ -200,6 +248,9 @@
         let touchStartTime = null;
         let touchCell = null;
         let targetCell = null;
+        let levelTimes = [];
+        let startTime = null;
+        let timerInterval = null;
 
         function getLevelParams(levelIndex) {
             const incrementEvery = 5;
@@ -220,6 +271,7 @@
             document.getElementById('startButton').style.display = 'none';
             document.getElementById('helpButton').style.display = 'none';
             document.getElementById('game').style.display = 'flex';
+            levelTimes = [];
             startLevel(currentLevel);
         }
 
@@ -234,6 +286,10 @@
             freeMistakeUsed = false;
             document.getElementById('mistakeCount').textContent = freeMistakeUsed ? 0 : 1;
             targetCell = null;
+            startTime = Date.now();
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(updateTimer, 10);
+            updateTimer();
             initializeBoard();
         }
 
@@ -320,10 +376,7 @@
                         cell.classList.add('bomb');
                         gameOver = true;
                         revealAllBombs();
-                        showBanner('Вы проиграли!', false).then(() => {
-                            currentLevel = 0;
-                            startLevel(currentLevel);
-                        });
+                        showGameOverBanner();
                     }
                 } else {
                     cell.textContent = board[y][x] > 0 ? board[y][x] : '';
@@ -421,14 +474,20 @@
 
             if ((correctFlags === bombs && bombCount === 0) || (unopenedBombs === totalUnopened && totalUnopened === bombs)) {
                 gameOver = true;
+                const endTime = Date.now();
+                const timeTaken = endTime - startTime;
+                levelTimes.push(timeTaken);
+                updateTimeTable();
+
                 let message = 'Поздравляем, вы прошли уровень!';
-                if (currentLevel === 99) message = 'Поздравляем, вы прошли все уровни!';
-                await showBanner(message, true);
+                if (currentLevel === 99) {
+                    const avgTime = levelTimes.reduce((a, b) => a + b, 0) / levelTimes.length;
+                    const totalTime = levelTimes.reduce((a, b) => a + b, 0);
+                    message = `Поздравляем, вы прошли все уровни! Среднее время: ${formatTime(avgTime)}, Общее время: ${formatTime(totalTime)}`;
+                }
+                await showWinBanner(message);
                 if (currentLevel < 99) {
                     currentLevel++;
-                    startLevel(currentLevel);
-                } else {
-                    currentLevel = 0;
                     startLevel(currentLevel);
                 }
             }
@@ -466,10 +525,7 @@
                                 cell.classList.add('bomb');
                                 gameOver = true;
                                 revealAllBombs();
-                                showBanner('Вы проиграли!', false).then(() => {
-                                    currentLevel = 0;
-                                    startLevel(currentLevel);
-                                });
+                                showGameOverBanner();
                                 return;
                             }
                         }
@@ -506,14 +562,79 @@
             }
         }
 
-        function showBanner(message, isWin) {
+        function updateTimer() {
+            if (!startTime || gameOver) return;
+            const now = Date.now();
+            const elapsed = now - startTime;
+            const hours = Math.floor(elapsed / (1000 * 60 * 60)).toString().padStart(2, '0');
+            const minutes = Math.floor((elapsed % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, '0');
+            const seconds = Math.floor((elapsed % (1000 * 60)) / 1000).toString().padStart(2, '0');
+            const milliseconds = (elapsed % 1000).toString().padStart(3, '0');
+            document.getElementById('timer').textContent = `Время: ${hours}.${minutes}.${seconds},${milliseconds}`;
+        }
+
+        function toggleTimeTable() {
+            const table = document.getElementById('timeTable');
+            table.style.display = table.style.display === 'block' ? 'none' : 'block';
+            if (table.style.display === 'block') updateTimeTable();
+        }
+
+        function updateTimeTable() {
+            const table = document.getElementById('timeTable').getElementsByTagName('table')[0];
+            table.innerHTML = '<tr><th>Уровень</th><th>Время прохождения</th></tr>';
+            levelTimes.forEach((time, index) => {
+                const row = table.insertRow();
+                row.insertCell(0).textContent = index + 1;
+                row.insertCell(1).textContent = formatTime(time);
+            });
+            if (levelTimes.length > 0) {
+                const avgTime = levelTimes.reduce((a, b) => a + b, 0) / levelTimes.length;
+                const row = table.insertRow();
+                row.insertCell(0).textContent = 'Среднее';
+                row.insertCell(1).textContent = formatTime(avgTime);
+            }
+        }
+
+        function formatTime(ms) {
+            const hours = Math.floor(ms / (1000 * 60 * 60)).toString().padStart(2, '0');
+            const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, '0');
+            const seconds = Math.floor((ms % (1000 * 60)) / 1000).toString().padStart(2, '0');
+            const milliseconds = (ms % 1000).toString().padStart(3, '0');
+            return `${hours}.${minutes}.${seconds},${milliseconds}`;
+        }
+
+        function showWinBanner(message) {
             return new Promise(resolve => {
                 const banner = document.createElement('div');
                 banner.id = 'banner';
-                banner.textContent = message;
-                if (isWin) banner.textContent += ' 🎉';
+                banner.innerHTML = `<p>${message}</p>`;
+                if (currentLevel === 99) banner.onclick = () => { banner.remove(); resolve(); };
                 document.getElementById('board').appendChild(banner);
-                setTimeout(() => { banner.remove(); resolve(); }, 1500);
+                if (currentLevel < 99) {
+                    setTimeout(() => { banner.remove(); resolve(); }, 1500);
+                }
+            }).then(() => {
+                if (currentLevel < 99) {
+                    currentLevel++;
+                    startLevel(currentLevel);
+                }
+            });
+        }
+
+        function showGameOverBanner() {
+            const endTime = Date.now();
+            const totalTime = levelTimes.reduce((a, b) => a + b, 0) + (endTime - startTime);
+            const avgTime = levelTimes.length > 0 ? totalTime / (levelTimes.length + 1) : endTime - startTime;
+            const message = `Вы проиграли!<br>Среднее время: ${formatTime(avgTime)}<br>Общее время: ${formatTime(totalTime)}`;
+            return new Promise(resolve => {
+                const banner = document.createElement('div');
+                banner.id = 'banner';
+                banner.innerHTML = `<p>${message}</p>`;
+                banner.onclick = () => { banner.remove(); resolve(); };
+                document.getElementById('board').appendChild(banner);
+            }).then(() => {
+                currentLevel = 0;
+                startLevel(currentLevel);
             });
         }
 
