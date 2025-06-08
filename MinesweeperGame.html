@@ -121,11 +121,14 @@
             justify-content: center;
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-            padding: 20px;
+            padding: 0;
             text-align: center;
             z-index: 10;
             cursor: pointer;
             white-space: pre-wrap;
+        }
+        #banner-content {
+            padding: 20px;
         }
         #banner p {
             margin: 10px 0;
@@ -607,10 +610,25 @@
                 const banner = document.createElement('div');
                 banner.id = 'banner';
                 const content = document.createElement('div');
+                content.id = 'banner-content';
+                content.style.visibility = 'hidden';
+                content.style.position = 'absolute';
+                content.style.padding = '20px';
+                content.style.fontSize = '20px';
+                content.style.fontFamily = 'Arial, sans-serif';
+                content.style.whiteSpace = 'pre-wrap';
                 content.innerHTML = `<p>${message}</p>`;
-                banner.appendChild(content);
-                banner.style.width = content.scrollWidth + 10 + 'px';
-                banner.style.height = content.scrollHeight + 10 + 'px';
+                document.body.appendChild(content);
+                const rect = content.getBoundingClientRect();
+                const width = rect.width + 5;
+                const height = rect.height + 5;
+                content.remove();
+                const contentVisible = document.createElement('div');
+                contentVisible.id = 'banner-content';
+                contentVisible.innerHTML = `<p>${message}</p>`;
+                banner.appendChild(contentVisible);
+                banner.style.width = width + 'px';
+                banner.style.height = height + 'px';
                 if (currentLevel === 99) banner.onclick = () => { banner.remove(); resolve(); };
                 document.getElementById('board').appendChild(banner);
                 if (currentLevel < 99) {
@@ -633,10 +651,25 @@
                 const banner = document.createElement('div');
                 banner.id = 'banner';
                 const content = document.createElement('div');
+                content.id = 'banner-content';
+                content.style.visibility = 'hidden';
+                content.style.position = 'absolute';
+                content.style.padding = '20px';
+                content.style.fontSize = '20px';
+                content.style.fontFamily = 'Arial, sans-serif';
+                content.style.whiteSpace = 'pre-wrap';
                 content.innerHTML = `<p>${message}</p>`;
-                banner.appendChild(content);
-                banner.style.width = content.scrollWidth + 10 + 'px';
-                banner.style.height = content.scrollHeight + 10 + 'px';
+                document.body.appendChild(content);
+                const rect = content.getBoundingClientRect();
+                const width = rect.width + 5;
+                const height = rect.height + 5;
+                content.remove();
+                const contentVisible = document.createElement('div');
+                contentVisible.id = 'banner-content';
+                contentVisible.innerHTML = `<p>${message}</p>`;
+                banner.appendChild(contentVisible);
+                banner.style.width = width + 'px';
+                banner.style.height = height + 'px';
                 banner.onclick = () => { banner.remove(); resolve(); };
                 document.getElementById('board').appendChild(banner);
             }).then(() => {
