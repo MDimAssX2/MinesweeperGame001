@@ -361,20 +361,27 @@
             if (gameOver) return;
 
             let correctFlags = 0;
+            let unopenedBombs = 0;
+            let totalUnopened = 0;
+
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
                     const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
-                    if (board[y][x] === -1) {
-                        if (cell.classList.contains('flagged')) {
-                            correctFlags++;
+                    if (!cell.classList.contains('opened')) {
+                        totalUnopened++;
+                        if (board[y][x] === -1) {
+                            unopenedBombs++;
+                            if (cell.classList.contains('flagged')) {
+                                correctFlags++;
+                            }
+                        } else if (cell.classList.contains('flagged')) {
+                            return; // Флаг на безопасной клетке — победа не засчитывается
                         }
-                    } else if (cell.classList.contains('flagged')) {
-                        return; // Если флаг стоит не на бомбе, победа не засчитывается
                     }
                 }
             }
 
-            if (correctFlags === bombs && bombCount === 0) {
+            if ((correctFlags === bombs && bombCount === 0) || (unopenedBombs === totalUnopened && totalUnopened === bombs)) {
                 gameOver = true;
                 let message = 'Поздравляем, вы прошли уровень!';
                 if (currentLevel === 99) {
@@ -439,7 +446,7 @@
         }
 
         function showHelp() {
-            alert('Правила игры в Сапёр: Открывайте клетки левой кнопкой мыши или одиночным нажатием на сенсорном экране. Для установки флага используйте правую кнопку мыши или зажмите клетку на сенсорном экране на 0.3 секунды. Цель — правильно отметить все бомбы флагами. Удачи!');
+            alert('Правила игры в Сапёр: Открывайте клетки левой кнопкой мыши или одиночным нажатием на сенсорном экране. Для установки флага используйте правую кнопку мыши или зажмите клетку на сенсорном экране на 0.3 секунды. Цель — либо правильно отметить все бомбы флагами, либо оставить неоткрытыми только бомбы. Удачи!');
         }
     </script>
 </body>
