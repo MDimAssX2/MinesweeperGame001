@@ -69,7 +69,7 @@
             gap: 5px;
             margin-bottom: 20px;
             width: 300px;
-            justify-content: center; /* Центрирование кнопок */
+            justify-content: center;
         }
         #startButton, #helpButton, #restart, #helpGameButton {
             padding: 10px;
@@ -130,7 +130,7 @@
             align-items: center;
             justify-content: center;
             border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 0 5px rgba(0,0,0,0.1);
             padding: 0;
             text-align: center;
             z-index: 10;
@@ -240,7 +240,7 @@
         <div id="level">Уровень: <span id="levelNumber">1/100</span></div>
         <div id="board"></div>
         <div id="counter">💣 Бомб осталось: <span id="bombCount">0</span></div>
-        <div id="mistakeCounter">Право на ошибку: <span id="mistakeCount">1</span></div>
+        <div id="mistakeCounter">Право на ошибку: <span id="mistakeCount">0</span></div>
         <div id="timer" onclick="toggleTimeTable()">Время: 00.00.00,000</div>
         <div id="timeTable">
             <table>
@@ -259,6 +259,7 @@
         let levelTimes = [];
         let startTime = null;
         let timerInterval = null;
+        let isSafeModeActive = true; // Флаг безопасного режима
 
         function getLevelParams(levelIndex) {
             const incrementEvery = 5;
@@ -280,6 +281,8 @@
             document.getElementById('helpButton').style.display = 'none';
             document.getElementById('game').style.display = 'flex';
             levelTimes = [];
+            isSafeModeActive = true; // Активируем безопасный режим в начале
+            document.getElementById('mistakeCount').textContent = 0; // Счетчик ошибок изначально 0
             startLevel(currentLevel);
         }
 
@@ -292,7 +295,6 @@
             document.getElementById('bombCount').textContent = bombCount;
             document.getElementById('levelNumber').textContent = `${levelIndex + 1}/100`;
             freeMistakeUsed = false;
-            document.getElementById('mistakeCount').textContent = freeMistakeUsed ? 0 : 1;
             targetCell = null;
             startTime = Date.now();
             if (timerInterval) clearInterval(timerInterval);
@@ -304,6 +306,8 @@
         function restartGame() {
             currentLevel = 0;
             levelTimes = [];
+            isSafeModeActive = true; // Сбрасываем безопасный режим
+            document.getElementById('mistakeCount').textContent = 0;
             startLevel(currentLevel);
             updateTimeTable();
         }
@@ -372,7 +376,16 @@
                 targetCell = null;
                 cell.classList.add('opened');
                 if (board[y][x] === -1) {
-                    if (!freeMistakeUsed) {
+                    if (isSafeModeActive) {
+                        // В безопасном режиме устанавливаем флаг вместо смерти
+                        cell.classList.remove('opened');
+                        cell.classList.add('flagged');
+                        cell.textContent = '🚩';
+                        bombCount--;
+                        document.getElementById('bombCount').textContent = bombCount;
+                        checkWin();
+                    } else if (!freeMistakeUsed) {
+                        // После активации счетчика ошибок используется первое право
                         cell.classList.remove('opened');
                         cell.classList.add('flagged');
                         cell.textContent = '🚩';
@@ -382,6 +395,7 @@
                         document.getElementById('mistakeCount').textContent = 0;
                         checkWin();
                     } else {
+                        // Вторая ошибка приводит к проигрышу
                         cell.textContent = '💣';
                         cell.classList.add('bomb');
                         gameOver = true;
@@ -390,6 +404,10 @@
                     }
                 } else {
                     cell.textContent = board[y][x] > 0 ? board[y][x] : '';
+                    if (board[y][x] <= 3 && isSafeModeActive) {
+                        isSafeModeActive = false; // Отключаем безопасный режим
+                        document.getElementById('mistakeCount').textContent = 1; // Активируем право на ошибку
+                    }
                     if (board[y][x] === 0) openAdjacentCells(x, y);
                     checkWin();
                 }
@@ -678,6 +696,8 @@
             }).then(() => {
                 currentLevel = 0;
                 levelTimes = [];
+                isSafeModeActive = true; // Сбрасываем безопасный режим при проигрыше
+                document.getElementById('mistakeCount').textContent = 0;
                 startLevel(currentLevel);
                 updateTimeTable();
             });
@@ -689,7 +709,7 @@
         }
 
         function showHelp() {
-            alert('Правила игры в Сапёр: Выберите клетку первым нажатием (появится 🎯), вторым нажатием вскройте её. Для установки флага зажмите клетку на 0.3 секунды или нажмите ПКМ, даже на мишени (ЛКМ на мишени флаг не ставит). Нажмите на открытую клетку с цифрой, если вокруг неё столько флагов, сколько указано в цифре — откроются соседние клетки. Цель — открыть все клетки, кроме бомб. Удачи!');
+            alert('Правила игры в Сапёр: Выберите клетку первым нажатием (появится 🎯), вторым нажатием вскройте её. До вскрытия клетки с цифрой ≤ 3 нажатие на бомбу ставит флаг, а не убивает. После вскрытия клетки с цифрой ≤ 3 активируется право на 1 ошибку. Для установки флага зажмите клетку на 0.3 секунды или нажмите ПКМ. Нажмите на открытую клетку с цифрой, если вокруг неё столько флагов, сколько указано в цифре — откроются соседние клетки. Цель — открыть все клетки, кроме бомб. Удачи!');
         }
     </script>
 </body>
